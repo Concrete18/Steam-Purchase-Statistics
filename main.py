@@ -1,0 +1,239 @@
+# standard library
+from pathlib import Path
+import json, csv, os
+
+# third-party imports
+import pandas as pd
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
+console = Console()
+
+
+def load_purchase_data() -> list[dict]:
+    """
+    Loads purchase history from config folder.
+    """
+    path = Path("data/steam_purchase_history.json")
+    if path.exists():
+        with open(path) as file:
+            return json.load(file)
+    return []
+
+
+def create_csv():
+    """
+    Docstring for create_csv
+    """
+    print("Creating CSV")
+    data = load_purchase_data()
+    with open("data/steam_purchase_history.csv", "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["name", "date", "type", "desc", "total"])
+        for entry in data:
+            games = entry.get("games", [])
+            date = entry.get("date")
+            total = entry.get("total", 0)
+            entry_type = entry.get("type", "Unknown")
+
+            row = None
+            if len(games) == 1:
+                row = [games[0], date, entry_type, "", total]
+            elif entry_type == "In-Game Purchase":
+                row = [games[0], date, entry_type, games[1], total]
+            else:
+                first = True
+                for game in games:
+                    grouped_total = total if first else 0
+                    first = False
+                    row = [game, date, entry_type, "grouped purchase", grouped_total]
+            if row:
+                writer.writerow(row)
+    print("CSV was Created")
+
+
+def game_summary(df: pd.DataFrame):
+
+    # market profit
+
+    # TODO remove market data
+    total_paid = df["total"].sum()
+    avg_paid = df["total"].mean()
+
+    now = pd.Timestamp.now().normalize()
+    cur_week = df[df["date"] >= now - pd.Timedelta(days=7)]
+    cur_month = df[df["date"] >= now - pd.Timedelta(days=30)]
+    cur_year = df[df["date"] >= now - pd.Timedelta(days=365)]
+
+    prev_week = df[
+        (df["date"] >= now - pd.Timedelta(days=14))
+        & (df["date"] <= now - pd.Timedelta(days=7))
+    ]
+
+    prev_month = df[
+        (df["date"] >= now - pd.Timedelta(days=60))
+        & (df["date"] <= now - pd.Timedelta(days=30))
+    ]
+
+    prev_year = df[
+        (df["date"] >= now - pd.Timedelta(days=730))
+        & (df["date"] <= now - pd.Timedelta(days=365))
+    ]
+
+    summary = Panel(
+        f"""
+    [bold cyan]Current Week:[/]   ${cur_week["total"].sum():,.2f}
+    [bold cyan]Current Month:[/]  ${cur_month["total"].sum():,.2f}
+    [bold cyan]Current Year:[/]   ${cur_year["total"].sum():,.2f}
+
+    [bold cyan]Previous Week:[/]  ${prev_week["total"].sum():,.2f}
+    [bold cyan]Previous Month:[/] ${prev_month["total"].sum():,.2f}
+    [bold cyan]Previous Year:[/]  ${prev_year["total"].sum():,.2f}
+
+    [bold cyan]Avg Price:[/] ${avg_paid:,.2f}
+    [bold cyan]Total Payed:[/] ${total_paid:,.2f}
+        """,
+        title="Game Summary",
+        border_style="green",
+        expand=False,
+    )
+    console.print(summary)
+
+
+def market_summary(df: pd.DataFrame):
+    df = df[df["market"]]
+
+    total_profit = df["total"].sum()
+    total_revenue = df["total"].sum()
+    total_bought = df["total"].sum()
+
+    summary = Panel(
+        f"""
+    [bold cyan]Total Profit:[/] ${total_profit:.2f}
+    [bold cyan]Total Revenue:[/] ${total_revenue:.2f}
+    [bold cyan]Total Bought:[/] ${total_bought:.2f}
+        """,
+        title="Market Summary",
+        border_style="green",
+        expand=False,
+    )
+    console.print(summary)
+
+
+def purchases_by_month(df: pd.DataFrame):
+    df = df[~df["not_games"]]
+
+    plt.figure(figsize=(20, 10))
+    plt.plot(df["date"], df["total"], marker="o")
+    plt.xlabel("Date")
+    plt.ylabel("Amount Spent ($)")
+    plt.title("Steam Purchases Over Time")
+    plt.grid(True)
+    plt.show()
+
+
+def cumulative(df: pd.DataFrame):
+    # cumulative total by month
+    # b.index = pd.to_datetime(b['date'],format='%m/%d/%y %I:%M%p')
+    # b.groupby(by=[b.index.month, b.index.year])
+    # or
+    # I think the more pandonic ways are to either use resample
+    # (when it provides the functionality you need) or use a TimeGrouper: df.groupby(pd.TimeGrouper(freq='M'))
+
+    # df = df.set_index("date")
+    # df = df.resample("M").sum()
+
+    df = df[~df["not_games"]]
+    df["cumulative_total"] = df["total"].cumsum()
+    plt.figure(figsize=(20, 10))
+    plt.plot(df["date"], df["cumulative_total"], marker="o")
+    plt.xlabel("Date")
+    plt.ylabel("Total Spent ($)")
+    plt.title("Cumulative Steam Spending")
+    plt.grid(True)
+    plt.show()
+
+    # WIP finish monthly
+    # monthly = df.set_index("date").resample("M")["total"].sum()
+    # plt.figure(figsize=(20, 10))
+    # monthly.plot(kind="bar")
+    # plt.xlabel("Month")
+    # plt.ylabel("Total Spent ($)")
+    # plt.title("Monthly Steam Spending")
+    # plt.tight_layout()
+    # plt.show()
+
+
+def in_game_purchases(df: pd.DataFrame):
+    # ensure numeric
+    df["total"] = pd.to_numeric(df["total"], errors="coerce")
+    in_game = df[df["type"] == "In-Game Purchase"]
+    sums = in_game.groupby("name", as_index=False)["total"].sum().values.tolist()
+    sorted_sums = sorted(sums, key=lambda entry: entry[1], reverse=True)
+
+    print(sorted_sums)
+
+    TABLE_TITLE = "In-Game Purchase Totals"
+    table = Table(
+        title=TABLE_TITLE,
+        show_lines=True,
+        title_style="bold",
+        style="green3",
+    )
+    table.add_column("Name", justify="left")
+    table.add_column("Total", justify="right")
+
+    all_total = 0
+    for name, total in sorted_sums:
+        all_total += total
+        if name == "Uninitialized":
+            continue
+        row = [name, f"${total:.2f}"]
+        table.add_row(*row)
+    console.print(table, new_line_start=True)
+
+    summary = Panel(
+        f"""
+    [bold cyan]Purchase Total:[/] ${all_total:.2f}
+        """,
+        title="In-Game Purchase Summary",
+        border_style="green",
+        expand=False,
+    )
+    console.print(summary)
+
+
+def purchase_history_stats(csv_path):
+    df = pd.read_csv(csv_path, na_values="?")
+
+    # parses dates
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
+
+    # non game mask
+    ignore_keywords = ["Market", "Valve Index", "Steam Deck"]
+    df["not_games"] = df["name"].str.contains(
+        "|".join(ignore_keywords), case=False, na=False
+    )
+    # market mask
+    df["market"] = df["type"].str.contains("Market", case=False, na=False)
+
+    game_summary(df)
+    market_summary(df)
+    in_game_purchases(df)
+    # purchases_by_month(df)
+    # cumulative(df)
+
+
+def run(make_csv):
+    # TODO make this run if csv does not exist and allow it to be forced
+    csv_path = "data/steam_purchase_history.csv"
+    if make_csv or not os.path.exists(csv_path):
+        create_csv()
+    purchase_history_stats(csv_path)
+
+
+if __name__ == "__main__":
+    run(make_csv=False)

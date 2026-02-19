@@ -1,1 +1,5 @@
-# Steam-Purchase-Statistics
+# Steam Purchase Statistics
+
+## Features
+
+## Quick Start
