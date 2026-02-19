@@ -169,11 +169,8 @@ def cumulative(df: pd.DataFrame):
 def in_game_purchases(df: pd.DataFrame):
     # ensure numeric
     df["total"] = pd.to_numeric(df["total"], errors="coerce")
-    in_game = df[df["type"] == "In-Game Purchase"]
-    sums = in_game.groupby("name", as_index=False)["total"].sum().values.tolist()
-    sorted_sums = sorted(sums, key=lambda entry: entry[1], reverse=True)
-
-    print(sorted_sums)
+    in_game = df[df["type"] == "In-Game Purchase"].sort_values(by="date")
+    sums = in_game.groupby("name", as_index=False)["total"].sum()
 
     TABLE_TITLE = "In-Game Purchase Totals"
     table = Table(
@@ -186,7 +183,8 @@ def in_game_purchases(df: pd.DataFrame):
     table.add_column("Total", justify="right")
 
     all_total = 0
-    for name, total in sorted_sums:
+    for _, row in sums.iterrows():
+        name, total = row["name"], row["total"]
         all_total += total
         if name == "Uninitialized":
             continue
