@@ -169,8 +169,9 @@ def cumulative(df: pd.DataFrame):
 def in_game_purchases(df: pd.DataFrame):
     # ensure numeric
     df["total"] = pd.to_numeric(df["total"], errors="coerce")
-    in_game = df[df["type"] == "In-Game Purchase"].sort_values(by="date")
+    in_game = df[df["type"] == "In-Game Purchase"]
     sums = in_game.groupby("name", as_index=False)["total"].sum()
+    sorted_sums = sums.sort_values(by="total", ascending=False)  # type: ignore
 
     TABLE_TITLE = "In-Game Purchase Totals"
     table = Table(
@@ -183,15 +184,15 @@ def in_game_purchases(df: pd.DataFrame):
     table.add_column("Total", justify="right")
 
     all_total = 0
-    for _, row in sums.iterrows():
+    for _, row in sorted_sums.iterrows():
         name, total = row["name"], row["total"]
-        all_total += total
         if name == "Uninitialized":
             continue
+        all_total += total
         row = [name, f"${total:.2f}"]
         table.add_row(*row)
-    console.print(table, new_line_start=True)
 
+    # total summary
     summary = Panel(
         f"""
     [bold cyan]Purchase Total:[/] ${all_total:.2f}
@@ -201,6 +202,8 @@ def in_game_purchases(df: pd.DataFrame):
         expand=False,
     )
     console.print(summary)
+
+    console.print(table, new_line_start=True)
 
 
 def purchase_history_stats(csv_path):
