@@ -1,6 +1,8 @@
 # standard library
 from pathlib import Path
-import json, csv, os
+
+# local imports
+from library.csv import load_csv
 
 # third-party imports
 import pandas as pd
@@ -12,52 +14,8 @@ from rich.panel import Panel
 console = Console()
 
 
-def load_purchase_data() -> list[dict]:
-    """
-    Loads purchase history from config folder.
-    """
-    path = Path("data/steam_purchase_history.json")
-    if path.exists():
-        with open(path) as file:
-            return json.load(file)
-    return []
-
-
-def create_csv():
-    """
-    Docstring for create_csv
-    """
-    print("Creating CSV")
-    data = load_purchase_data()
-    with open("data/steam_purchase_history.csv", "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["name", "date", "type", "desc", "total"])
-        for entry in data:
-            games = entry.get("games", [])
-            date = entry.get("date")
-            total = entry.get("total", 0)
-            entry_type = entry.get("type", "Unknown")
-
-            row = None
-            if len(games) == 1:
-                row = [games[0], date, entry_type, "", total]
-            elif entry_type == "In-Game Purchase":
-                row = [games[0], date, entry_type, games[1], total]
-            else:
-                first = True
-                for game in games:
-                    grouped_total = total if first else 0
-                    first = False
-                    row = [game, date, entry_type, "grouped purchase", grouped_total]
-            if row:
-                writer.writerow(row)
-    print("CSV was Created")
-
-
 def game_summary(df: pd.DataFrame):
-
     # market profit
-
     # TODO remove market data
     total_paid = df["total"].sum()
     avg_paid = df["total"].mean()
@@ -104,7 +62,6 @@ def game_summary(df: pd.DataFrame):
 
 def market_summary(df: pd.DataFrame):
     df = df[df["market"]]
-
     total_profit = df["total"].sum()
     total_revenue = df["total"].sum()
     total_bought = df["total"].sum()
@@ -124,7 +81,6 @@ def market_summary(df: pd.DataFrame):
 
 def purchases_by_month(df: pd.DataFrame):
     df = df[~df["not_games"]]
-
     plt.figure(figsize=(20, 10))
     plt.plot(df["date"], df["total"], marker="o")
     plt.xlabel("Date")
@@ -202,13 +158,10 @@ def in_game_purchases(df: pd.DataFrame):
         expand=False,
     )
     console.print(summary)
-
     console.print(table, new_line_start=True)
 
 
-def purchase_history_stats(csv_path):
-    df = pd.read_csv(csv_path, na_values="?")
-
+def purchase_history_stats(df: pd.DataFrame):
     # parses dates
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date")
@@ -228,13 +181,10 @@ def purchase_history_stats(csv_path):
     # cumulative(df)
 
 
-def run(make_csv):
-    # TODO make this run if csv does not exist and allow it to be forced
-    csv_path = "data/steam_purchase_history.csv"
-    if make_csv or not os.path.exists(csv_path):
-        create_csv()
-    purchase_history_stats(csv_path)
+def main():
+    dataframe = load_csv()
+    purchase_history_stats(dataframe)
 
 
 if __name__ == "__main__":
-    run(make_csv=False)
+    main()
