@@ -21,34 +21,34 @@ def game_summary(df: pd.DataFrame):
     avg_paid = df["total"].mean()
 
     now = pd.Timestamp.now().normalize()
-    cur_week = df[df["date"] >= now - pd.Timedelta(days=7)]
-    cur_month = df[df["date"] >= now - pd.Timedelta(days=30)]
-    cur_year = df[df["date"] >= now - pd.Timedelta(days=365)]
+    last_7 = df[df["date"] >= now - pd.Timedelta(days=7)]
+    last_30 = df[df["date"] >= now - pd.Timedelta(days=30)]
+    last_365 = df[df["date"] >= now - pd.Timedelta(days=365)]
 
-    prev_week = df[
+    prev_7 = df[
         (df["date"] >= now - pd.Timedelta(days=14))
         & (df["date"] <= now - pd.Timedelta(days=7))
     ]
 
-    prev_month = df[
+    prev_30 = df[
         (df["date"] >= now - pd.Timedelta(days=60))
         & (df["date"] <= now - pd.Timedelta(days=30))
     ]
 
-    prev_year = df[
+    prev_365 = df[
         (df["date"] >= now - pd.Timedelta(days=730))
         & (df["date"] <= now - pd.Timedelta(days=365))
     ]
 
     summary = Panel(
         f"""
-    [bold cyan]Current Week:[/]   ${cur_week["total"].sum():,.2f}
-    [bold cyan]Current Month:[/]  ${cur_month["total"].sum():,.2f}
-    [bold cyan]Current Year:[/]   ${cur_year["total"].sum():,.2f}
+    [bold cyan]Last 7:[/]   ${last_7["total"].sum():,.2f}
+    [bold cyan]Last 30:[/]  ${last_30["total"].sum():,.2f}
+    [bold cyan]Last 365:[/]   ${last_365["total"].sum():,.2f}
 
-    [bold cyan]Previous Week:[/]  ${prev_week["total"].sum():,.2f}
-    [bold cyan]Previous Month:[/] ${prev_month["total"].sum():,.2f}
-    [bold cyan]Previous Year:[/]  ${prev_year["total"].sum():,.2f}
+    [bold cyan]Previous 7:[/]  ${prev_7["total"].sum():,.2f}
+    [bold cyan]Previous 30:[/] ${prev_30["total"].sum():,.2f}
+    [bold cyan]Previous 365:[/]  ${prev_365["total"].sum():,.2f}
 
     [bold cyan]Avg Price:[/] ${avg_paid:,.2f}
     [bold cyan]Total Payed:[/] ${total_paid:,.2f}
@@ -122,6 +122,11 @@ def cumulative(df: pd.DataFrame):
     # plt.show()
 
 
+def price_f(price):
+    polarity = "-" if price < 0 else ""
+    return f"{polarity}${abs(price):.2f}"
+
+
 def in_game_purchases(df: pd.DataFrame):
     # ensure numeric
     df["total"] = pd.to_numeric(df["total"], errors="coerce")
@@ -139,9 +144,15 @@ def in_game_purchases(df: pd.DataFrame):
     table.add_column("Name", justify="left")
     table.add_column("Total", justify="right")
 
+    ignore = ["STAR WARS&trade;: Squadrons Pre-order Edition"]
+
     all_total = 0
     for _, row in sorted_sums.iterrows():
         name, total = row["name"], row["total"]
+        # games to ignore
+        if name in ignore:
+            print("yay")
+            continue
         if name == "Uninitialized":
             continue
         all_total += total
@@ -181,9 +192,46 @@ def purchase_history_stats(df: pd.DataFrame):
     # cumulative(df)
 
 
+def recent_purchases(df: pd.DataFrame, n=14):
+    TABLE_TITLE = f"Recent Purchases ({n} Days)"
+    table = Table(
+        title=TABLE_TITLE,
+        show_lines=True,
+        title_style="bold",
+        style="green3",
+    )
+    table.add_column("Name", justify="left")
+    table.add_column("Type", justify="left")
+    table.add_column("Total", justify="right")
+    table.add_column("Date", justify="right")
+
+    # TODO remove anything that was refunded
+
+    for _, row in df.iterrows():
+        if not n:
+            break
+        name = row["name"]
+        type = row["type"]
+        total = row["total"]
+        date = row["date"]
+        if name == "Uninitialized":
+            continue
+        row = [
+            name,
+            type,  # TODO change color by type
+            price_f(total),  # TODO change color by price
+            date.strftime("%b %d, %Y"),  # TODO change color by current month
+        ]
+        table.add_row(*row)
+        n -= 1
+
+    console.print(table, new_line_start=True)
+
+
 def main():
     dataframe = load_csv()
     purchase_history_stats(dataframe)
+    recent_purchases(dataframe)
 
 
 if __name__ == "__main__":
