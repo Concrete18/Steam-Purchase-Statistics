@@ -17,6 +17,7 @@ console = Console()
 def game_summary(df: pd.DataFrame):
     # market profit
     # TODO remove market data
+    # TODO remove refunds
     total_paid = df["total"].sum()
     avg_paid = df["total"].mean()
 
@@ -151,7 +152,6 @@ def in_game_purchases(df: pd.DataFrame):
         name, total = row["name"], row["total"]
         # games to ignore
         if name in ignore:
-            print("yay")
             continue
         if name == "Uninitialized":
             continue
@@ -174,7 +174,7 @@ def in_game_purchases(df: pd.DataFrame):
 
 def purchase_history_stats(df: pd.DataFrame):
     # parses dates
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], format="%b %d, %Y")
     df = df.sort_values("date")
 
     # non game mask
@@ -207,6 +207,7 @@ def recent_purchases(df: pd.DataFrame, n=14):
 
     # TODO remove anything that was refunded
 
+    refunded = []
     for _, row in df.iterrows():
         if not n:
             break
@@ -215,6 +216,16 @@ def recent_purchases(df: pd.DataFrame, n=14):
         total = row["total"]
         date = row["date"]
         if name == "Uninitialized":
+            continue
+        # ignore Market Transactions
+        if "Market Transaction" in type:
+            continue
+        # removes refunded entries
+        if type == "Refund":
+            refunded.append(name)
+            continue
+        if name in refunded:
+            refunded.remove(name)
             continue
         row = [
             name,
@@ -228,10 +239,59 @@ def recent_purchases(df: pd.DataFrame, n=14):
     console.print(table, new_line_start=True)
 
 
+def monthly_purchases(df):
+    MONTHS = 6
+    # Parse the date column and create a "month" period column
+    df["date"] = pd.to_datetime(df["date"], format="%b %d, %Y")
+    df["month"] = df["date"].dt.to_period("M")
+
+    # Sum totals per month (refunds, being negative, net out automatically)
+    monthly_totals = df.groupby("month")["total"].sum().sort_index()
+
+    # Grab the last 6 months
+    # last_6_months = monthly_totals.tail(6)
+    all_months = pd.period_range(
+        end=monthly_totals.index.max(),
+        periods=MONTHS,
+        freq="M",
+    )
+    last_6_months = monthly_totals.reindex(all_months, fill_value=0)
+
+    # Format as a friendlier table with dollar signs
+    last_6_months_display = last_6_months.reset_index()
+    last_6_months_display.columns = ["Month", "Total"]
+    # last_6_months_display["Total"] = last_6_months_display["Total"].map(
+    #     lambda x: f"${x:,.2f}"
+    # )
+    # print(last_6_months_display.to_string(index=False))
+
+    TABLE_TITLE = f"Monthly Purchases\n({MONTHS} Months)"
+    table = Table(
+        title=TABLE_TITLE,
+        show_lines=True,
+        title_style="bold",
+        style="green3",
+    )
+    table.add_column("Date", justify="right")
+    table.add_column("Total", justify="right")
+
+    for _, row in last_6_months_display.iterrows():
+        total = row["Total"]
+        month = row["Month"]
+        row = [
+            month.strftime("%B"),  # TODO change color by current month
+            f"{total:,.2f}",
+        ]
+        table.add_row(*row)
+    console.print(table, new_line_start=True)
+
+
 def main():
     dataframe = load_csv()
-    purchase_history_stats(dataframe)
+    dataframe["date"] = pd.to_datetime(dataframe["date"], format="%b %d, %Y")
+    # purchase_history_stats(dataframe)cls
     recent_purchases(dataframe)
+    monthly_purchases(dataframe)
 
 
 if __name__ == "__main__":
