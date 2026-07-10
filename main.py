@@ -15,8 +15,6 @@ console = Console()
 
 
 def game_summary(df: pd.DataFrame):
-    # market profit
-    # TODO remove market data
     # TODO remove refunds
     total_paid = df["total"].sum()
     avg_paid = df["total"].mean()

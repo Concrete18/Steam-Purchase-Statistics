@@ -10,7 +10,7 @@ def load_purchase_data() -> list[dict]:
     """
     Loads purchase history from config folder.
     """
-    path = Path("data/purchase_history.json")
+    path = Path("data/steam_purchase_history.json")
     if path.exists():
         with open(path) as file:
             return json.load(file)
