@@ -178,13 +178,10 @@ def purchase_history_stats(df: pd.DataFrame):
     df = df.sort_values("date")
 
     # non game mask
-    ignore_keywords = ["Market", "Valve Index", "Steam Deck"]
+    ignore_keywords = ["Valve Index", "Steam Deck"]
     df["not_games"] = df["name"].str.contains(
         "|".join(ignore_keywords), case=False, na=False
     )
-    # market mask
-    df["market"] = df["type"].str.contains("Market", case=False, na=False)
-
     game_summary(df)
     market_summary(df)
     in_game_purchases(df)
@@ -192,7 +189,7 @@ def purchase_history_stats(df: pd.DataFrame):
     # cumulative(df)
 
 
-def recent_purchases(df: pd.DataFrame, n=14):
+def recent_purchases(df: pd.DataFrame, n=30):
     TABLE_TITLE = f"Recent Purchases ({n} Days)"
     table = Table(
         title=TABLE_TITLE,
@@ -216,9 +213,6 @@ def recent_purchases(df: pd.DataFrame, n=14):
         total = row["total"]
         date = row["date"]
         if name == "Uninitialized":
-            continue
-        # ignore Market Transactions
-        if "Market Transaction" in type:
             continue
         # removes refunded entries
         if type == "Refund":
@@ -287,9 +281,9 @@ def monthly_purchases(df):
 
 
 def main():
-    dataframe = load_csv()
+    dataframe = load_csv(recreate_csv=True)
     dataframe["date"] = pd.to_datetime(dataframe["date"], format="%b %d, %Y")
-    # purchase_history_stats(dataframe)cls
+    # purchase_history_stats(dataframe)
     recent_purchases(dataframe)
     monthly_purchases(dataframe)
 
